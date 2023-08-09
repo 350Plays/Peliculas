@@ -1,8 +1,42 @@
 from fastapi import FastAPI
+from typing import List
+from fuzzywuzzy import process
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import scipy.stats as stats 
+import ast
+import json
+from collections import Counter
 
 app = FastAPI()
 
-# Función 1: Películas por idioma
+# Cargar el DataFrame con los datos
+df = pd.read_csv('Dataset/movies_cleaned.csv')
+
+@app.get("/")
+def read_root():
+    return {"message": "Bienvenido a la API de películas"}
+
+@app.get("/peliculas_idioma/")
+def peliculas_idioma(Idioma: str):
+    # Contar la cantidad de películas en el idioma especificado
+    count = df['spoken_languages'].str.contains(Idioma, case=False, na=False).sum()
+    
+    return {"message": f"{count} cantidad de películas fueron estrenadas en idioma {Idioma}"}
+
+
+
+
+
+
+
+
+
+
+
+"""# Función 1: Películas por idioma
 @app.get("/peliculas_idioma")
 def peliculas_idioma(Idioma: str):
     # Aquí implementa la lógica para contar películas por idioma y devuelve la respuesta adecuada
@@ -40,4 +74,4 @@ def get_director(nombre_director: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8000)"""
