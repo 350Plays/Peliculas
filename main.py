@@ -4,6 +4,12 @@ from fuzzywuzzy import process
 import pandas as pd
 from collections import Counter
 import uvicorn
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from fastapi import FastAPI, Query
+import difflib
+
+
 
 app = FastAPI(debug=True)
 
@@ -19,6 +25,19 @@ credits_df = pd.read_csv('Dataset/credits_cleaned.csv')
 # Convertir los valores de la columna 'id' a strings
 df['id'] = df['id'].astype(str)
 credits_df['id'] = credits_df['id'].astype(str)
+
+# Eliminar valores nulos
+df['cleaned_title'].fillna('', inplace=True)
+
+
+# Crear una instancia de TfidfVectorizer
+tfidf_vectorizer = TfidfVectorizer(stop_words='english')
+
+# Calcular la matriz TF-IDF
+tfidf_matrix = tfidf_vectorizer.fit_transform(df['cleaned_title'])
+
+# Calcular la similitud del coseno entre las películas
+cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
 
 @app.get('/')
 def read_root():
@@ -259,6 +278,43 @@ def get_director(nombre_director: str):
         }
     else:
         return {"resultado": f"No se encontraron resultados para el director {nombre_director}"}
+
+@app.get('/recomendacion/{titulo}')
+def recomendacion(titulo: str):
+    # Convertir el título a minúsculas para hacerlo insensible a mayúsculas y minúsculas
+    titulo = titulo.lower()
+
+    # Crear un diccionario que mapea el título de la película a su índice en el DataFrame
+    indices = pd.Series(df.index, index=df['title'].str.lower()).drop_duplicates().to_dict()
+
+    # Buscar el índice del título de la película (o el título más similar)
+    idx = indices.get(titulo)
+
+    if idx is None:
+        # Si no se encuentra una coincidencia exacta, buscar títulos similares
+        matches = difflib.get_close_matches(titulo, indices.keys(), n=5, cutoff=0.5)
+        recommended_movies = [df['title'][indices[m]] for m in matches]
+        return {
+            "mensaje": "No se encontró una coincidencia exacta. ¿Quisiste decir alguna de estas películas?",
+            "peliculas_similares": recommended_movies
+        }
+
+    # Obtener los puntajes de similitud de la película con todas las demás
+    scores = list(enumerate(cosine_sim[idx]))
+
+    # Ordenar las películas según los puntajes de similitud en orden descendente
+    scores = sorted(scores, key=lambda x: x[1], reverse=True)
+
+    # Obtener los índices de las 5 películas más similares
+    movie_indices = [i[0] for i in scores[1:6]]
+
+    # Obtener los títulos de las películas más similares
+    peliculas_similares = df['title'].iloc[movie_indices].tolist()
+
+    return {"peliculas_recomendadas": peliculas_similares}
+
+
+
 
 
 if __name__ == "__main__":
